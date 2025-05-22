@@ -35,12 +35,17 @@ func serveRSS(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, a := range articles {
+		enclosureType := "image/png"
+		if strings.HasSuffix(strings.ToLower(a.Image), ".jpg") || strings.HasSuffix(strings.ToLower(a.Image), ".jpeg") {
+			enclosureType = "image/jpeg"
+		}
+		// Ajoute la petite description au début, puis infos (catégorie, date, durée)
 		feed.Items = append(feed.Items, &feeds.Item{
 			Title:       a.Title,
 			Link:        &feeds.Link{Href: a.URL},
-			Description: makeDescription(a.Category, a.DateTxt, a.ReadingTime),
+			Description: buildFullDescription(a.Description, a.Category, a.DateTxt, a.ReadingTime),
 			Created:     a.Date,
-			Enclosure:   &feeds.Enclosure{Url: a.Image, Type: "image/png"},
+			Enclosure:   &feeds.Enclosure{Url: a.Image, Type: enclosureType},
 		})
 	}
 
@@ -62,11 +67,11 @@ type Article struct {
 	Category    string
 	DateTxt     string
 	ReadingTime string
-	Description string
+	Description string // <- la petite description sous le titre
 	Date        time.Time
 }
 
-// fetchArticles scraps the blog for articles without Framer classes
+// fetchArticles scraps the blog for articles sans classes Framer
 func fetchArticles() ([]Article, error) {
 	resp, err := http.Get(blogURL)
 	if err != nil {
@@ -102,18 +107,17 @@ func fetchArticles() ([]Article, error) {
 		}
 		seen[fullURL] = true
 
-		// On ne garde que les liens qui ont un h3 (titre) et une image à l'intérieur
-		title := s.Find("h3").Text()
+		// On ne garde que les liens qui ont un h5 (titre) et une image à l'intérieur
+		title := s.Find("h5").Text()
 		imgURL, _ := s.Find("img").Attr("src")
 		if title == "" || imgURL == "" {
 			return
 		}
 
-		// Optionnel : description courte avec la catégorie, la date, et le temps de lecture
+		// Cherche la catégorie, date, durée
 		category := ""
 		dateTxt := ""
 		readingTime := ""
-		// Ex: <p>Garde d'animaux</p> <p>|</p> <p>19 mai 2025</p> <p>|</p> <p>6 min</p>
 		s.Find("p").Each(func(i int, p *goquery.Selection) {
 			text := strings.TrimSpace(p.Text())
 			if text == "|" {
@@ -134,6 +138,16 @@ func fetchArticles() ([]Article, error) {
 			dateParsed, _ = parseFrenchDate(dateTxt)
 		}
 
+		// Nouvelle extraction : la petite description (premier <p> qui n'est ni cat/date/durée/|)
+		petiteDescription := ""
+		s.Find("p").Each(func(i int, p *goquery.Selection) {
+			txt := strings.TrimSpace(p.Text())
+			if txt != "" && txt != "|" && !strings.Contains(txt, "min") && !strings.Contains(txt, "20") &&
+				txt != category && txt != dateTxt && txt != readingTime && petiteDescription == "" {
+				petiteDescription = txt
+			}
+		})
+
 		articles = append(articles, Article{
 			URL:         fullURL,
 			Title:       title,
@@ -142,10 +156,20 @@ func fetchArticles() ([]Article, error) {
 			DateTxt:     dateTxt,
 			ReadingTime: readingTime,
 			Date:        dateParsed,
+			Description: petiteDescription,
 		})
 	})
 
 	return articles, nil
+}
+
+// buildFullDescription construit la description complète pour RSS
+func buildFullDescription(desc, category, dateTxt, readingTime string) string {
+	infos := makeDescription(category, dateTxt, readingTime)
+	if desc != "" {
+		return fmt.Sprintf("%s<br><i>%s</i>", desc, infos)
+	}
+	return infos
 }
 
 func makeDescription(category, dateTxt, readingTime string) string {
