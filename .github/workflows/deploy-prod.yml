@@ -6,11 +6,11 @@ on:
 
 env:
   AWS_REGION: "eu-west-3"
-  ECR_REPOSITORY: "rda_rss_feed_scrapper-prd"
+  ECR_REPOSITORY: "rda-rss-feed-scrapper"
   ECS_SERVICE: "rda-rss-feed-service"
   ECS_CLUSTER: "prod"
   ECS_TASK_DEFINITION: "rda-rss-feed-task"
-  CONTAINER_NAME: "rda-rss-feed-scrapper"
+  CONTAINER_NAME: "rda_rss_feed_scrapper"
 
 jobs:
   build-and-deploy:
@@ -24,11 +24,8 @@ jobs:
         with:
           go-version: 1.24
 
-      # Install AWS CLI (si nécessaire pour l'étape "Download task definition")
-      - name: Install AWS CLI
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y awscli
+      - name: Check AWS CLI version
+        run: aws --version
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
