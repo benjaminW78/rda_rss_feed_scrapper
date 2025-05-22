@@ -39,13 +39,15 @@ func serveRSS(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(strings.ToLower(a.Image), ".jpg") || strings.HasSuffix(strings.ToLower(a.Image), ".jpeg") {
 			enclosureType = "image/jpeg"
 		}
+		length, _ := getImageLength(a.Image)
+
 		// Ajoute la petite description au début, puis infos (catégorie, date, durée)
 		feed.Items = append(feed.Items, &feeds.Item{
 			Title:       a.Title,
 			Link:        &feeds.Link{Href: a.URL},
 			Description: buildFullDescription(a.Description, a.Category, a.DateTxt, a.ReadingTime),
 			Created:     a.Date,
-			Enclosure:   &feeds.Enclosure{Url: a.Image, Type: enclosureType},
+			Enclosure:   &feeds.Enclosure{Url: a.Image, Length: length, Type: enclosureType},
 		})
 	}
 
@@ -57,6 +59,19 @@ func serveRSS(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/rss+xml; charset=utf-8")
 	_, _ = w.Write([]byte(rss))
+}
+func getImageLength(url string) (string, error) {
+	resp, err := http.Head(url)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	size := resp.Header.Get("Content-Length")
+	if size == "" {
+		// fallback, you could fetch the image and count bytes, but HEAD is best
+		return "0", nil
+	}
+	return size, nil
 }
 
 // Article struct
