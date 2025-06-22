@@ -16,8 +16,9 @@ const blogURL = "https://ruben.care/blog"
 func main() {
 	http.HandleFunc("/rss.xml", serveRSS)
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Println("Health check received")
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprintln(w, "OK")
+		w.Write([]byte("OK"))
 	})
 	fmt.Println("Server started on :8080 (GET http://localhost:8080/rss.xml)")
 	log.Fatal(http.ListenAndServe(":8080", nil))
